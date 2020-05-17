@@ -14,8 +14,8 @@ import random
 
 # パラメータの準備
 RN_EPOCHS = 30 # 学習回数
-#RN_BATCH_SIZE = 16 # バッチサイズ
-RN_BATCH_SIZE = 128 # バッチサイズ
+RN_BATCH_SIZE = 2 # バッチサイズ
+#RN_BATCH_SIZE = 128 # バッチサイズ
 
 # 学習データの読み込み
 def load_data():
@@ -39,8 +39,8 @@ def train_network():
     y_rq = np.array(y_rq)
     
     # ベストプレイヤーのモデルの読み込み
-    #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #device = torch.device('cpu')
 
     model0 = InitialNet()
     model0.load_state_dict(torch.load('./model/best_i.h5'))
@@ -72,48 +72,63 @@ def train_network():
         minbatch_loss = torch.tensor([0],dtype=torch.double)
         minbatch_loss = minbatch_loss.to(device)
         minbatch_num = 0
+
+        x_list = []
+        yp_list =[]
+        yv_list = []
+        yrq_list = []
+
         for j in indexs:
-            for k in range(3):
-                if k == 0:
-                    x = torch.tensor([xs[j]],dtype=torch.double)
-                    yp = np.array([y_policies[j]])
-                    yp = yp.argmax(axis = 1)
-                    yp = torch.tensor(yp,dtype=torch.long)
-                    yv = torch.tensor(y_values[j],dtype=torch.double)
+            x_list.append(xs[j])
+            yp_list.append(y_policies[j])
+            yv_list.append(y_values[j])
+            yrq_list.append(y_rq[j])
+
+            if len(x_list) == RN_BATCH_SIZE:
+
+                x_list = np.array(x_list)
+                yp_list = np.array(yp_list)
+                yv_list = np.array(yv_list)
+                yrq_list = np.array(yrq_list)
+
+                minbatch_loss = 0
+
+                for k in range(3):
+                    if k == 0:
+                        x = torch.tensor(x_list,dtype=torch.double)
+                        yp = yp_list.argmax(axis = 1)
+                        yp = torch.tensor(yp,dtype=torch.long)
+                        yv = torch.tensor(yv_list,dtype=torch.double)
+                        
+                        x = x.to(device)
+                        outputs = model0(x)
+                    else:
+                        yp = np.array(yrq_list[:,k,1])
+                        yp = np.array([np.array(yp[i]) for i in range(len(yp))])
+                        yp = yp.argmax(axis = 1)
+                        yp = torch.tensor(yp,dtype=torch.long)
+                        yv = torch.tensor(yrq_list[:,k,2].tolist(),dtype=torch.double)
+                        action = yrq_list[:,k-1,4]
+
+                        yp = yp.to(device)
+                        yv = yv.to(device)
+                        action_tensor = action_to_tensor(np.array(action))
+                        action_tensor = action_tensor.to(device)
+                        outputs = model1(rq,action_tensor)
                     
-                    x = x.to(device)
-                    outputs = model0(x)
-                else:
-                    
-                    yp = np.array([y_rq[j][k][1]])
-                    yp = yp.argmax(axis = 1)
-                    yp = torch.tensor(yp,dtype=torch.long)
-                    yv = torch.tensor(y_rq[j][k][2],dtype=torch.double)
-                    action = y_rq[j][k-1][4]
-                    
+
+                    output_policy = outputs[0]
+                    output_value = torch.squeeze(outputs[1])
+                    rq = outputs[2]
+
                     yp = yp.to(device)
                     yv = yv.to(device)
-                    action_tensor = action_to_tensor(np.array([action]))
-                    action_tensor = action_tensor.to(device)
-                    outputs = model1(rq,action_tensor)
-                    
 
-                output_policy = outputs[0]
-                output_value = torch.squeeze(outputs[1])
-                rq = outputs[2]
+                    loss_policies = criterion_policies(output_policy,yp)
+                    loss_values = criterion_values(output_value,yv)
+                    loss = loss_policies + loss_values
+                    minbatch_loss += loss
 
-                yp = yp.to(device)
-                yv = yv.to(device)
-
-                loss_policies = criterion_policies(output_policy,yp)
-                loss_values = criterion_values(output_value,yv)
-                loss = loss_policies + loss_values
-                minbatch_loss += loss
-
-            minbatch_num += 1 
-
-            if minbatch_num == RN_BATCH_SIZE:
-                
                 optimizer.zero_grad()
                 minbatch_loss.backward()
                 optimizer.step()
@@ -121,6 +136,11 @@ def train_network():
                 sum_num += 1
                 minbatch_loss = 0
                 minbatch_num = 0
+
+                x_list = []
+                yp_list =[]
+                yv_list = []
+                yrq_list = []
 
         print(" avg loss " + str(sum_loss / sum_num))
 

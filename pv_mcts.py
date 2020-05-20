@@ -30,11 +30,13 @@ def predict(model, state, rq, action):
     with torch.no_grad():
         # 推論
         if rq is None:
-            y = model[0](x)
+            new_rq = model[0](x)
         else:
             a_tensor = action_to_tensor(np.array([action]))
             a_tensor = a_tensor.to(device)
-            y = model[1](rq, a_tensor)
+            new_rq = model[1](rq,a_tensor)
+
+        y = model[2](new_rq)
 
     # 方策の取得
     policies = y[0][0][list(state.legal_actions())] # 合法手のみ
@@ -44,7 +46,7 @@ def predict(model, state, rq, action):
     value = y[1][0][0]
 
     # 隠れ層の取得
-    hidden = y[2]
+    hidden = new_rq
     return policies, value, hidden
 
 # ノードのリストを試行回数のリストに変換
@@ -165,19 +167,24 @@ if __name__ == '__main__':
     #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
     
-    model0 = InitialNet()
-    model0.load_state_dict(torch.load("./model/best_i.h5"))
+    model0 = RepNet()
+    model0.load_state_dict(torch.load("./model/best_r.h5"))
     model0 = model0.double()
     model0 = model0.to(device)
     model0.eval()
 
-    model1 = RecurrentNet()
-    model1.load_state_dict(torch.load("./model/best_r.h5"))
+    model1 = DynamicsNet()
+    model1.load_state_dict(torch.load("./model/best_d.h5"))
     model1 = model1.double()
     model1 = model1.to(device)
     model1.eval()
 
-    model = (model0,model1)
+    model2 = PredictNet()
+    model2.load_state_dict(torch.load("./model/best_p.h5"))
+    model2 = model2.double()
+    model2 = model2.to(device)
+    model2.eval()
+    model = (model0,model1,model2)
     
     # 状態の生成
     state = State()

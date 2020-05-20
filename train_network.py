@@ -14,8 +14,8 @@ import random
 
 # パラメータの準備
 RN_EPOCHS = 30 # 学習回数
-RN_BATCH_SIZE = 2 # バッチサイズ
-#RN_BATCH_SIZE = 128 # バッチサイズ
+#RN_BATCH_SIZE = 2 # バッチサイズ
+RN_BATCH_SIZE = 128 # バッチサイズ
 
 # 学習データの読み込み
 def load_data():
@@ -27,7 +27,7 @@ def load_data():
 def train_network():
     # 学習データの読み込み
     history = load_data()
-    xs, y_policies, y_values, y_deep_values, actions, y_rq = zip(*history)
+    xs, y_policies, y_values, y_deep_values, actions, y_rp = zip(*history)
 
     # 学習のための入力データのシェイプの変換
     file, rank, channel = DN_INPUT_SHAPE
@@ -36,23 +36,29 @@ def train_network():
     y_policies = np.array(y_policies)
     y_values = np.array(y_values)
     y_deep_values = np.array(y_deep_values)
-    y_rq = np.array(y_rq)
+    y_rp = np.array(y_rp)
     
     # ベストプレイヤーのモデルの読み込み
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     #device = torch.device('cpu')
 
-    model0 = InitialNet()
-    model0.load_state_dict(torch.load('./model/best_i.h5'))
+    model0 = RepNet()
+    model0.load_state_dict(torch.load("./model/best_r.h5"))
     model0 = model0.double()
     model0 = model0.to(device)
     model0.train()
 
-    model1 = RecurrentNet()
-    model1.load_state_dict(torch.load('./model/best_r.h5'))
+    model1 = DynamicsNet()
+    model1.load_state_dict(torch.load("./model/best_d.h5"))
     model1 = model1.double()
     model1 = model1.to(device)
     model1.train()
+
+    model2 = PredictNet()
+    model2.load_state_dict(torch.load("./model/best_p.h5"))
+    model2 = model2.double()
+    model2 = model2.to(device)
+    model2.train()
     
     optimizer = optim.SGD(model0.parameters(),lr=0.01)
     
@@ -76,20 +82,20 @@ def train_network():
         x_list = []
         yp_list =[]
         yv_list = []
-        yrq_list = []
+        yrp_list = []
 
         for j in indexs:
             x_list.append(xs[j])
             yp_list.append(y_policies[j])
             yv_list.append(y_values[j])
-            yrq_list.append(y_rq[j])
+            yrp_list.append(y_rp[j])
 
             if len(x_list) == RN_BATCH_SIZE:
 
                 x_list = np.array(x_list)
                 yp_list = np.array(yp_list)
                 yv_list = np.array(yv_list)
-                yrq_list = np.array(yrq_list)
+                yrp_list = np.array(yrp_list)
 
                 minbatch_loss = 0
 
@@ -101,25 +107,24 @@ def train_network():
                         yv = torch.tensor(yv_list,dtype=torch.double)
                         
                         x = x.to(device)
-                        outputs = model0(x)
+                        rp = model0(x)
                     else:
-                        yp = np.array(yrq_list[:,k,1])
+                        yp = np.array(yrp_list[:,k,1])
                         yp = np.array([np.array(yp[i]) for i in range(len(yp))])
                         yp = yp.argmax(axis = 1)
                         yp = torch.tensor(yp,dtype=torch.long)
-                        yv = torch.tensor(yrq_list[:,k,2].tolist(),dtype=torch.double)
-                        action = yrq_list[:,k-1,4]
-
+                        yv = torch.tensor(yrp_list[:,k,2].tolist(),dtype=torch.double)
+                        action = yrp_list[:,k-1,4]
+                    
                         yp = yp.to(device)
                         yv = yv.to(device)
                         action_tensor = action_to_tensor(np.array(action))
                         action_tensor = action_tensor.to(device)
-                        outputs = model1(rq,action_tensor)
+                        rp = model1(rp,action_tensor)
                     
-
+                    outputs = model2(rp)
                     output_policy = outputs[0]
                     output_value = torch.squeeze(outputs[1])
-                    rq = outputs[2]
 
                     yp = yp.to(device)
                     yv = yv.to(device)
@@ -140,7 +145,7 @@ def train_network():
                 x_list = []
                 yp_list =[]
                 yv_list = []
-                yrq_list = []
+                yrp_list = []
 
         print(" avg loss " + str(sum_loss / sum_num))
 

@@ -101,19 +101,24 @@ def self_play():
     #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
 
-    model0 = InitialNet()
-    model0.load_state_dict(torch.load("./model/best_i.h5"))
+    model0 = RepNet()
+    model0.load_state_dict(torch.load("./model/best_r.h5"))
     model0 = model0.double()
     model0 = model0.to(device)
     model0.eval()
 
-    model1 = RecurrentNet()
-    model1.load_state_dict(torch.load("./model/best_r.h5"))
+    model1 = DynamicsNet()
+    model1.load_state_dict(torch.load("./model/best_d.h5"))
     model1 = model1.double()
     model1 = model1.to(device)
     model1.eval()
 
-    model = (model0,model1)
+    model2 = PredictNet()
+    model2.load_state_dict(torch.load("./model/best_p.h5"))
+    model2 = model2.double()
+    model2 = model2.to(device)
+    model2.eval()
+    model = (model0,model1,model2)
 
     # 複数回のゲームの実行
     for i in range(SP_GAME_COUNT):

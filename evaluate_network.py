@@ -44,8 +44,9 @@ def play(next_actions):
 
 # ベストプレイヤーの交代
 def update_best_player():
-    copy('./model/latest_i.h5', './model/best_i.h5')
     copy('./model/latest_r.h5', './model/best_r.h5')
+    copy('./model/latest_d.h5', './model/best_d.h5')
+    copy('./model/latest_p.h5', './model/best_p.h5')
     print('Change BestPlayer')
 
 # ネットワークの評価
@@ -54,33 +55,47 @@ def evaluate_network():
     
     #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
-    model00 = InitialNet()
-    model00.load_state_dict(torch.load('./model/latest_i.h5'))
+    model00 = RepNet()
+    model00.load_state_dict(torch.load('./model/latest_r.h5'))
     model00 = model00.double()
     model00 = model00.to(device)
     model00.eval()
 
-    model01 = RecurrentNet()
-    model01.load_state_dict(torch.load('./model/latest_r.h5'))
+    model01 = DynamicsNet()
+    model01.load_state_dict(torch.load('./model/latest_d.h5'))
     model01 = model01.double()
     model01 = model01.to(device)
     model01.eval()
-    model0 = (model00,model01)
+
+    model02 = PredictNet()
+    model02.load_state_dict(torch.load('./model/latest_p.h5'))
+    model02 = model02.double()
+    model02 = model02.to(device)
+    model02.eval()
+
+    model0 = (model00,model01,model02)
     
 
     # ベストプレイヤーのモデルの読み込み
-    model10 = InitialNet()
-    model10.load_state_dict(torch.load('./model/best_i.h5'))
+    model10 = RepNet()
+    model10.load_state_dict(torch.load('./model/best_r.h5'))
     model10 = model10.double()
     model10 = model10.to(device)
     model10.eval()
 
-    model11 = RecurrentNet()
-    model11.load_state_dict(torch.load('./model/best_r.h5'))
+    model11 = DynamicsNet()
+    model11.load_state_dict(torch.load('./model/best_d.h5'))
     model11 = model11.double()
     model11 = model11.to(device)
     model11.eval()
-    model1 = (model10,model11)
+
+    model12 = PredictNet()
+    model12.load_state_dict(torch.load('./model/best_p.h5'))
+    model12 = model12.double()
+    model12 = model12.to(device)
+    model12.eval()
+
+    model1 = (model10,model11,model12)
 
     
     # PV MCTSで行動選択を行う関数の生成
@@ -117,18 +132,26 @@ def evaluate_network():
 def evaluate_problem():
     # ベストプレイヤーのモデルの読み込み
     device = torch.device('cpu')
-    model00 = InitialNet()
-    model00.load_state_dict(torch.load('./model/best_i.h5'))
+
+    model00 = RepNet()
+    model00.load_state_dict(torch.load('./model/best_r.h5'))
     model00 = model00.double()
     model00 = model00.to(device)
     model00.eval()
 
-    model01 = RecurrentNet()
-    model01.load_state_dict(torch.load('./model/best_r.h5'))
+    model01 = DynamicsNet()
+    model01.load_state_dict(torch.load('./model/best_d.h5'))
     model01 = model01.double()
     model01 = model01.to(device)
     model01.eval()
-    model = (model00,model01)
+
+    model02 = PredictNet()
+    model02.load_state_dict(torch.load('./model/best_p.h5'))
+    model02 = model02.double()
+    model02 = model02.to(device)
+    model02.eval()
+
+    model = (model00,model01,model02)
 
     # 状態の生成
     state = State()
